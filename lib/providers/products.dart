@@ -42,8 +42,9 @@ class Products with ChangeNotifier {
   ];
 
   String _token;
+  String _userId;
 
-  Products(this._token, this._items);
+  Products(this._token, this._items, this._userId);
 
   List<Product> get items {
     return [..._items];
@@ -57,14 +58,20 @@ class Products with ChangeNotifier {
     return _items.firstWhere((element) => element.id == productId);
   }
 
-  Future<void> fetchAndSetProducts() async {
-    final url = 'https://flutter-shop-app-7e4c7.firebaseio.com/products.json?auth=${_token}';
+  Future<void> fetchAndSetProducts([bool filterByUser = false]) async {
+    final filterString = filterByUser ? 'orderBy="creatorId"&equalTo="$_userId"' : '';
+    final url =
+        'https://flutter-shop-app-7e4c7.firebaseio.com/products.json?auth=${_token}&$filterString';
     try {
       final response = await http.get(url);
       final extractedData = json.decode(response.body) as Map<String, dynamic>;
       if (extractedData == null) {
         return;
       }
+      final favUrl =
+          'https://flutter-shop-app-7e4c7.firebaseio.com/userFavorites/$_userId.json?auth=$_token';
+      final favoriteResponse = await http.get(favUrl);
+      final favoriteData = json.decode(favoriteResponse.body);
       final List<Product> loadedProducts = [];
       extractedData.forEach(
         (prodId, prodData) {
@@ -73,7 +80,7 @@ class Products with ChangeNotifier {
             title: prodData['title'],
             description: prodData['description'],
             price: prodData['price'],
-            isFavourite: prodData['favourite'],
+            isFavourite: favoriteData == null ? false : favoriteData[prodId] ?? false,
             imageUrl: prodData['imageUrl'],
           ));
         },
@@ -86,7 +93,8 @@ class Products with ChangeNotifier {
   }
 
   Future<void> addProduct(Product product) async {
-    final url = 'https://flutter-shop-app-7e4c7.firebaseio.com/products.json?auth=$_token';
+    final url =
+        'https://flutter-shop-app-7e4c7.firebaseio.com/products.json?auth=$_token';
     try {
       final response = await http.post(
         url,
@@ -96,7 +104,7 @@ class Products with ChangeNotifier {
             'description': product.description,
             'imageUrl': product.imageUrl,
             'price': product.price,
-            'favourite': product.isFavourite,
+            'creatorId': _userId
           },
         ),
       );
